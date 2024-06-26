@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>SerendipityLM</title>
+		<link
+			href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+			rel="stylesheet"
+		/>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+		<style>
+			.spinner {
+				border: 4px solid rgba(255, 255, 255, 0.3);
+				border-radius: 50%;
+				border-top: 4px solid #ffffff;
+				width: 23px;
+				height: 23px;
+				animation: spin 1s linear infinite;
+				transform-origin: 50% 50%;
+				margin-left: 8px;
+			}
+			@keyframes spin {
+				0% {
+					transform: rotate(0deg);
+				}
+				100% {
+					transform: rotate(360deg);
+				}
+			}
+			.container {
+				display: flex;
+				height: 100vh;
+			}
+			.side-panel {
+				width: 340px;
+				height: 100%;
+				background: #fff;
+				border-left: 1px solid #e1e1e1;
+				overflow-y: auto;
+				transition: transform 0.3s ease;
+				z-index: 100;
+			}
+			.side-panel.collapsed {
+				display: none;
+			}
+			.side-panel-content {
+				position: fixed;
+				min-width: 340px;
+				background-color: white;
+			}
+			.content {
+				flex: 1;
+				display: flex;
+				flex-direction: column;
+			}
+			#settings-container {
+				display: none;
+			}
+			.modal {
+				display: none;
+				position: fixed;
+				z-index: 1000;
+				left: 0;
+				top: 0;
+				width: 100%;
+				height: 100%;
+				overflow: auto;
+				background-color: rgb(0, 0, 0);
+				background-color: rgba(0, 0, 0, 0.4);
+				padding-top: 60px;
+			}
+			.modal-content {
+				background-color: #fefefe;
+				margin: 5% auto;
+				padding: 20px;
+				border: 1px solid #888;
+				width: 60%;
+			}
+			.close {
+				color: #aaa;
+				float: right;
+				font-size: 28px;
+				font-weight: bold;
+			}
+			.close:hover,
+			.close:focus {
+				color: black;
+				text-decoration: none;
+				cursor: pointer;
+			}
+			#eval-items-list {
+				height: 100vh;
+				width: 100%;
+				max-width: 340px;
+				padding-bottom: 100px;
+			}
+			.notification {
+				position: fixed;
+				bottom: 10px;
+				left: 10px;
+				background-color: #4caf50;
+				color: white;
+				padding: 10px;
+				border-radius: 5px;
+				opacity: 0;
+				transition: opacity 0.5s ease-in-out;
+				z-index: 1000;
+			}
+			.notification.show {
+				opacity: 1;
+			}
+			#settings-button-icon {
+				transition: transform 0.5s ease;
+				transform-origin: center center;
+			}
+			.rotated {
+				transform: rotate(180deg);
+			}
+		</style>
+	</head>
+	<body>
+		<div class="flex h-screen">
+			<div class="content">
+				<div class="z-40 border-b sticky top-0 bg-white shadow-sm">
+					<div class="flex gap-4 px-4 py-2">
+						<h1 class="text-2xl font-bold text-blue-600 mt-1">SerendipityLM</h1>
+						<button
+							id="process-button"
+							class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+						>
+							Generate
+						</button>
+						<button
+							id="settings-button"
+							class="border hover:bg-blue-700 hover:text-white font-bold py-2 px-4 rounded flex"
+						>
+							Settings
+							<svg
+								fill="#000000"
+								height="14px"
+								width="14px"
+								xmlns="http://www.w3.org/2000/svg"
+								xmlns:xlink="http://www.w3.org/1999/xlink"
+								viewBox="0 0 330 330"
+								class="mt-1.5 ml-2"
+								id="settings-button-icon"
+							>
+								<path
+									id="XMLID_225_"
+									d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393
+                                c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393
+                                s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"
+								/>
+							</svg>
+						</button>
+						<div
+							class="cursor-pointer ml-auto mt-1 flex border px-2 rounded font-bold hover:bg-blue-100"
+							id="hamburger"
+						>
+							<svg width="20" height="20" viewBox="0 0 20 20" class="mt-1.5">
+								<path
+									d="M2.5 5h15M2.5 10h15M2.5 15h15"
+									stroke="#000"
+									stroke-width="2"
+								/>
+							</svg>
+						</div>
+					</div>
+					<div class="border-t px-4 py-6 bg-gray-50" id="settings-container">
+						<div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-7 gap-6">
+							<div>
+								<label
+									for="presetselector"
+									class="block text-lg font-semibold text-gray-700 mb-2"
+									>Prompt Presets</label
+								>
+								<select
+									id="presetselector"
+									class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								>
+									<option value="volvo">ThreeJS/GLSL</option>
+									<option value="saab">P5.Js</option>
+									<option value="mercedes">Tailwindcss</option>
+									<option value="audi">Text</option>
+								</select>
+							</div>
+							<div class="col-span-1 md:col-span-3">
+								<label
+									for="prompt"
+									class="block text-lg font-semibold text-gray-700 mb-2"
+									>Prompt</label
+								>
+								<textarea
+									id="prompt"
+									rows="4"
+									class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								></textarea>
+							</div>
+							<div>
+								<label
+									for="resultamount"
+									class="block text-lg font-semibold text-gray-700 mb-2"
+									>Result Amount</label
+								>
+								<select
+									id="resultamount"
+									class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								></select>
+							</div>
+							<div>
+								<label
+									for="maxevalitems"
+									class="block text-lg font-semibold text-gray-700 mb-2"
+									>Max Eval Items</label
+								>
+								<select
+									id="maxevalitems"
+									class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								></select>
+							</div>
+							<div>
+								<label
+									for="generationamount"
+									class="block text-lg font-semibold text-gray-700 mb-2"
+									>Show Generations</label
+								>
+								<select
+									id="generationamount"
+									class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								></select>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div id="result" class="space-y-4 p-4"></div>
+				<div id="iframe-container"></div>
+			</div>
+			<aside class="side-panel border-r" id="side-panel">
+				<div class="side-panel-content">
+					<div
+						class="border-b p-3.5 flex shadow-sm"
+						style="padding-bottom: 16px"
+					>
+						<h2 class="text-xl font-bold">Evaluation Items</h2>
+						<div
+							id="eval_add"
+							class="ml-auto border rounded-full w-7 h-7 leading-5 text-center text-xl text-blue-500 border-blue-500 font-bold cursor-pointer hover:bg-blue-400 hover:text-white"
+						>
+							+
+						</div>
+					</div>
+					<ul id="eval-items-list" class="space-y-2 p-1.5 overflow-y-auto"></ul>
+				</div>
+			</aside>
+		</div>
+
+		<!-- The Modal -->
+		<div id="myModal" class="modal">
+			<div class="modal-content">
+				<span class="close">&times;</span>
+				<h2 class="font-bold">Add New Evaluation Item</h2>
+				<div class="mt-4">
+					<label class="block text-sm font-medium text-gray-700">Thought</label>
+					<input
+						type="text"
+						id="thought"
+						class="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+					/>
+				</div>
+				<div class="mt-4">
+					<label class="block text-sm font-medium text-gray-700">Name</label>
+					<input
+						type="text"
+						id="name"
+						class="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+					/>
+				</div>
+				<div class="mt-4">
+					<label class="block text-sm font-medium text-gray-700">Code</label>
+					<textarea
+						id="code"
+						class="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+					></textarea>
+				</div>
+				<div class="mt-4">
+					<label class="block text-sm font-medium text-gray-700">Fitness</label>
+					<select
+						id="fitness"
+						class="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+					>
+						<option value="0">0</option>
+						<option value="0.25">0.25</option>
+						<option value="0.5">0.5</option>
+						<option value="0.75">0.75</option>
+						<option value="1.0" selected>1</option>
+					</select>
+				</div>
+				<button
+					id="saveButton"
+					class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+				>
+					Save
+				</button>
+			</div>
+		</div>
+
+		<div id="notification" class="notification">Code copied to clipboard</div>
+
+		<script>
+			// Global Vars
+			let counter = 1;
+			let eval_html = ``;
+			let eval_items = [];
+
+			let memory_max = 10;
+			let generation_max = 60;
+			let result_amount = 4;
+			let generation_show_amount = 12;
+			let prompt = "";
+			let promptPreset = [
+				{
+					name: "ThreesJs/GSLS",
+					prompt:
+						"You are a legendary, very smart creative coder who is testing out innovative generative art design concepts. <TASK DESCRIPTION> Design 1 generative art piece using GLSL shaders rendered in three.js. Each element should explore a unique theme and aesthetic to ensure maximum variation. It MUST have a aspect ratio of 300height 300width. Elements must contain many sub-elements.  Ensure each sub-element has independent and sophisticated animations affecting position, color, shape, opacity and other parameters. Sub-elements should be visually compelling, employing creative geometric shapes, asymmetry, and contrasting colors. Each element must be a complete, self-contained, valid three.js code snippet ready for embedding in an HTML document.",
+				},
+				{
+					name: "GSLS ES 3.0",
+					prompt:
+						"You are a legendary, very smart creative coder who is testing out innovative generative art design concepts. <TASK DESCRIPTION> Design 1 generative art piece using GLSL ES 3.0 shaders rendered in javascript. Each element should explore a unique theme and aesthetic to ensure maximum variation. It MUST have a aspect ratio of 300height 300width. Elements must contain many sub-elements.  Ensure each sub-element has independent and sophisticated animations affecting position, color, shape, opacity and other parameters. Sub-elements should be visually compelling, employing creative geometric shapes, asymmetry, and contrasting colors. Each element must be a complete, self-contained, valid javascript GLSL ES 3.0 code snippet ready for embedding in an HTML document.",
+				},
+				{
+					name: "TailwindCSS Art",
+					prompt:
+						"You are a legendary creative designer who is testing out innovative design concepts. <TASK DESCRIPTION> Design 1 UI HTML element using Tailwindcss for styling. Each element should explore a unique theme and aesthetic to ensure maximum variation. It MUST have a square aspect ratio. UI elements must contain at least 20 nested sub-elements. Ensure each sub-element has independent and sophisticated animations affecting position, color, shape, opacity and other parameters. Sub-elements should be intricately nested, and visually compelling, employing creative geometric shapes, asymmetry, and contrasting colors. Additionally, include SVG elements with unique shapes and animations. Minimal use of gradients overall. Each HTML element must be a complete, self-contained code snippet ready for embedding in an HTML document, including all necessary Tailwind CSS classes directly within the HTML.",
+				},
+				{
+					name: "P5.js",
+					prompt:
+						"You are a legendary creative designer who is testing out innovative generative art design concepts. <TASK DESCRIPTION> Design 1 generative art piece using p5.js. Each element should explore a unique theme and aesthetic to ensure maximum variation. It MUST have a aspect ratio of 300height 300width. It MUST only be the content inside of the <script> tag, not the entire HTML. Add the <script> tag around the code your generate. It MUST use WebGL mode but 2D. Ensure each sub-element has independent and sophisticated animations affecting position, color, shape, opacity and other parameters. Sub-elements should be intricately nested, and visually compelling, employing creative geometric shapes, asymmetry, and contrasting colors. Each element must be a complete, self-contained code snippet ready for embedding in an HTML document.",
+				},
+				{
+					name: "ThreeJs 3D",
+					prompt:
+						"You are a legendary creative designer who is testing out innovative generative art design concepts. <TASK DESCRIPTION> Design 1 generative art piece using three.js. Each element should explore a unique theme and aesthetic to ensure maximum variation. It MUST have a aspect ratio of 300height 300width. Ensure each sub-element has independent and sophisticated animations affecting position, color, shape, opacity and other parameters. Sub-elements should be intricately nested, and visually compelling, employing creative geometric shapes, asymmetry, and contrasting colors. Each element must be a complete, self-contained code snippet ready for embedding in an HTML document.",
+				},
+				{
+					name: "TailwindCSS UI Design",
+					prompt:
+						"You are a legendary web designer who is testing out innovative design concepts. <TASK DESCRIPTION> Design 1 UI HTML element using Tailwindcss for styling. Each element should explore a unique theme and aesthetic to ensure maximum variation. It MUST have a square aspect ratio. UI elements must contain many nested sub-elements. Sub-elements should be visually compelling, employing creative typography, shapes, asymmetry, and contrasting colors. Additionally, include SVG elements with unique shapes. Minimal use of gradients overall. Each HTML element must be a complete, self-contained code snippet ready for embedding in an HTML document, including all necessary Tailwind CSS classes directly within the HTML.",
+				},
+				{
+					name: "Short stories",
+					prompt:
+						"You are a legendary short story text author who is testing out innovative concepts. Write short story texts about a new laptop. Each text should explore a unique theme and aesthetic to ensure maximum variation. It must be at least 250 characters long. It MUST consist of ONLY of text, no HTML elements.",
+				},
+				{
+					name: "Cellular automaton",
+					prompt:
+						"You are a legendary creative coder who is testing out innovative generative concepts. <TASK DESCRIPTION> Design 1 cellular automaton 'game of life' simulation in javascript and rendered in html canvas. Animate it. Each simulation should explore unique rules to ensure maximum variation. It MUST be a valid cellular automaton. It MUST have a aspect ratio of 300height 300width. Try to prevent overly chaotic simulations. Try to aim for simulations that have the potential to be long running. Each element must be a complete, self-contained, valid code snippet ready for embedding in an HTML document.",
+				},
+			];
+
+			// Function to create an iframe and inject p5.js code into it
+			function createIframe(content) {
+				const iframe = document.createElement("iframe");
+
+				// Set iframe attributes
+				iframe.width = "300";
+				iframe.height = "300";
+				iframe.style.border = "none";
+
+				let contentString =
+					typeof content === "string" ? content : content.outerHTML;
+
+				contentString = contentString.trim();
+				// Check if the string starts with "<!DOCTYPE html>"
+				if (contentString.startsWith("<!DOCTYPE html>")) {
+					iframe.srcdoc = contentString;
+				} else {
+					iframe.srcdoc = `
+			                     <!DOCTYPE html>
+			                     <html lang="en">
+			                     <head>
+			                         <meta charset="UTF-8">
+			                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+			                         <title>Generated</title>
+			                         <link
+			                             href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+			                             rel="stylesheet"
+			                         />
+			                         <style>
+			                             body {
+                                            margin: 0;
+                                            background: white;
+			                             }
+			                         </style>
+			                         <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"><\/script>
+			                         </head>
+			                         <body>
+			                         ${contentString}
+			                         </body>
+			                         </html>
+			                     `;
+				}
+
+				return iframe;
+			}
+
+			// Function to show notification
+			function showNotification(message) {
+				const notification = document.getElementById("notification");
+				notification.textContent = message;
+				notification.classList.add("show");
+
+				setTimeout(() => {
+					notification.classList.remove("show");
+				}, 4000);
+			}
+
+			// Get the modal
+			const modal = document.getElementById("myModal");
+			const btn = document.getElementById("eval_add");
+			const span = document.getElementsByClassName("close")[0];
+
+			// When the user clicks the button, open the modal
+			btn.onclick = function () {
+				modal.style.display = "block";
+			};
+
+			// When the user clicks on <span> (x), close the modal
+			span.onclick = function () {
+				modal.style.display = "none";
+			};
+
+			// When the user clicks anywhere outside of the modal, close it
+			window.onclick = function (event) {
+				if (event.target == modal) {
+					modal.style.display = "none";
+				}
+			};
+
+			// Save button event listener
+			document.getElementById("saveButton").addEventListener("click", () => {
+				const thought = document.getElementById("thought").value;
+				const name = document.getElementById("name").value;
+				const code = document.getElementById("code").value;
+				const fitness = document.getElementById("fitness");
+				const fitnessvalue = fitness.options[fitness.selectedIndex].value;
+
+				if (thought && name && code) {
+					eval_items.unshift({
+						thought: thought,
+						name: name,
+						code: code,
+						fitness: fitnessvalue,
+					});
+					renderEvalItems(); // Re-render the eval items
+					modal.style.display = "none"; // Close the modal
+				} else {
+					alert("Please fill out all fields");
+				}
+			});
+
+			// Toggle side panel
+			const sidePanel = document.getElementById("side-panel");
+			const hamburger = document.getElementById("hamburger");
+			hamburger.addEventListener("click", () => {
+				sidePanel.classList.toggle("collapsed");
+			});
+
+			// Function to remove the item with the lowest fitness value and the oldest in the list
+			function removeLowestFitness() {
+				if (eval_items.length === 0) return;
+
+				// Find the minimum fitness value
+				const minFitness = Math.min(
+					...eval_items.map((item) => parseFloat(item.fitness))
+				);
+
+				// Find all items with the minimum fitness value
+				const minFitnessItems = eval_items.filter(
+					(item) => parseFloat(item.fitness) === minFitness
+				);
+
+				// Find the index of the oldest item with the minimum fitness value
+				const oldestItemIndex = eval_items.findIndex(
+					(item) => item === minFitnessItems[0]
+				);
+
+				// Remove the oldest item with the minimum fitness value
+				eval_items.splice(oldestItemIndex, 1);
+			}
+
+			// Function to sort eval_items by highest fitness value first
+			function sortEvalItemsByFitness() {
+				eval_items.sort(
+					(a, b) => parseFloat(b.fitness) - parseFloat(a.fitness)
+				);
+			}
+
+			// Function to setup settings
+			function settingsSetup() {
+				const resultAmountSelector = document.getElementById("resultamount");
+				const maxEvalItemsSelector = document.getElementById("maxevalitems");
+				const promptTextarea = document.getElementById("prompt");
+				const promptPresetSelector = document.getElementById("presetselector");
+
+				// Populate preset selector
+				promptPresetSelector.innerHTML = "";
+				for (let i = 0; i < promptPreset.length; i++) {
+					const option = document.createElement("option");
+					option.value = promptPreset[i].prompt;
+					option.textContent = promptPreset[i].name;
+					promptPresetSelector.appendChild(option);
+				}
+
+				// Set initial value for the prompt
+				prompt = promptPreset[0].prompt;
+
+				// Populate result amount selector
+				resultAmountSelector.innerHTML = "";
+				for (let i = 1; i <= 10; i++) {
+					const option = document.createElement("option");
+					option.value = i;
+					option.textContent = i;
+					if (i === result_amount) {
+						option.selected = true;
+					}
+					resultAmountSelector.appendChild(option);
+				}
+
+				// Populate max eval items selector
+				maxEvalItemsSelector.innerHTML = "";
+				for (let i = 1; i <= 10; i++) {
+					const option = document.createElement("option");
+					option.value = i;
+					option.textContent = i;
+					if (i === memory_max) {
+						option.selected = true;
+					}
+					maxEvalItemsSelector.appendChild(option);
+				}
+
+				// Populate generationamount items selector
+				generationamount.innerHTML = "";
+				for (let i = 1; i <= generation_max; i++) {
+					const option = document.createElement("option");
+					option.value = i;
+					option.textContent = i;
+					if (i === generation_show_amount) {
+						option.selected = true;
+					}
+					generationamount.appendChild(option);
+				}
+
+				// Set initial value for the prompt textarea
+				promptTextarea.value = promptPreset[0].prompt;
+
+				// Event listener to update presets
+				promptPresetSelector.addEventListener("change", (e) => {
+					promptTextarea.value = e.target.value;
+					prompt = e.target.value;
+				});
+
+				// Event listener to update result amount
+				resultAmountSelector.addEventListener("change", (e) => {
+					result_amount = parseInt(e.target.value, 10);
+				});
+
+				// Event listener to update max eval items
+				maxEvalItemsSelector.addEventListener("change", (e) => {
+					memory_max = parseInt(e.target.value, 10);
+				});
+
+				generationamount.addEventListener("change", (e) => {
+					generation_show_amount = parseInt(e.target.value, 10);
+				});
+
+				// Event listener to update prompt
+				promptTextarea.addEventListener("input", (e) => {
+					prompt = e.target.value;
+				});
+			}
+
+			settingsSetup();
+
+			// Settings container toggle
+			const settingsbutton = document.getElementById("settings-button");
+			const settingscontainer = document.getElementById("settings-container");
+			const settingsbuttonicon = document.getElementById(
+				"settings-button-icon"
+			);
+
+			settingsbutton.addEventListener("click", async () => {
+				if (
+					settingscontainer.style.display === "none" ||
+					settingscontainer.style.display === ""
+				) {
+					settingscontainer.style.display = "flex";
+				} else {
+					settingscontainer.style.display = "none";
+				}
+				settingsbuttonicon.classList.toggle("rotated");
+			});
+
+			// Function to render eval items in the side panel
+			function renderEvalItems() {
+				const evalItemsList = document.getElementById("eval-items-list");
+				evalItemsList.innerHTML = ""; // Clear the list
+				eval_items.forEach((item, index) => {
+					const listItem = document.createElement("li");
+					listItem.classList.add("bg-white", "p-2", "rounded", "text-sm");
+
+					const itemCopyCode = document.createElement("div");
+					itemCopyCode.innerHTML = `
+			                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			                         <path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM20 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H20C21.1 23 22 22.1 22 21V7C22 5.9 21.1 5 20 5ZM20 21H8V7H20V21Z" fill="currentColor"/>
+			                     </svg>
+			                 `;
+					itemCopyCode.classList.add(
+						"border",
+						"rounded-full",
+						"w-7",
+						"h-7",
+						"text-blue-500",
+						"hover:text-green-500",
+						"float-right",
+						"mr-2",
+						"cursor-pointer",
+						"pl-1.5",
+						"pt-1.5"
+					);
+					itemCopyCode.addEventListener("click", async () => {
+						try {
+							await navigator.clipboard.writeText(item.code);
+							showNotification("Code copied to clipboard");
+						} catch (err) {
+							console.error("Failed to copy code: ", err);
+						}
+					});
+
+					listItem.innerHTML = `
+			                     <button class="remove-item border rounded-full w-7 h-7 text-blue-500 hover:text-red-500 float-right" data-index="${index}">X</button>
+			                     <button class="critique-item border rounded-full w-7 h-7 text-blue-500 hover:text-green-500 float-right mr-2" data-index="${index}">&#9998;</button>
+			                     <div><b>${item.name}</b></div>
+			                     <div>Fitness: ${item.fitness}</div>
+			                     <div class="mt-2 max-w-[50px] example_small"></div>
+			                     ${
+															item.critique
+																? `<div class="critique-content mt-2"><b>Critique:</b> <span class="critique-text"></span> <button class="delete-critique text-red-500 hover:text-red-700" data-index="${index}">X</button></div>`
+																: ""
+														}
+			                 `;
+
+					if (item.critique) {
+						const critiqueTextElement =
+							listItem.querySelector(".critique-text");
+						critiqueTextElement.textContent = item.critique;
+					}
+
+					const iframeContainer = listItem.querySelector(".example_small");
+					const iframe = createIframe(item.code);
+					iframeContainer.appendChild(iframe);
+
+					listItem.insertBefore(
+						itemCopyCode,
+						listItem.querySelector(".critique-item")
+					);
+
+					evalItemsList.appendChild(listItem);
+				});
+
+				// Add event listeners to remove buttons
+				document.querySelectorAll(".remove-item").forEach((button) => {
+					button.addEventListener("click", (e) => {
+						const index = e.target.getAttribute("data-index");
+						eval_items.splice(index, 1);
+						renderEvalItems();
+					});
+				});
+
+				// Add event listeners to critique buttons
+				document.querySelectorAll(".critique-item").forEach((button) => {
+					button.addEventListener("click", (e) => {
+						const index = e.target.getAttribute("data-index");
+						const listItem = e.target.parentElement;
+						const item = eval_items[index];
+						let critiqueContainer = listItem.querySelector(
+							".critique-container"
+						);
+						if (!critiqueContainer) {
+							critiqueContainer = document.createElement("div");
+							critiqueContainer.classList.add("critique-container", "mt-2");
+							critiqueContainer.innerHTML = `
+			                             <div class="mt-2">Critique</div>
+			                             <textarea class="critique-textarea mt-1 block w-full p-2 border border-gray-300 rounded-md">${
+																			item.critique || ""
+																		}</textarea>
+			                             <div class="mt-2">
+			                                 <label class="block text-sm font-medium text-gray-700">Fitness</label>
+			                                 <select class="critique-fitness mt-1 block w-full p-2 border border-gray-300 rounded-md">
+			                                     <option value="0" ${
+																							item.fitness == 0
+																								? "selected"
+																								: ""
+																						}>0</option>
+			                                     <option value="0.25" ${
+																							item.fitness == 0.25
+																								? "selected"
+																								: ""
+																						}>0.25</option>
+			                                     <option value="0.5" ${
+																							item.fitness == 0.5
+																								? "selected"
+																								: ""
+																						}>0.5</option>
+			                                     <option value="0.75" ${
+																							item.fitness == 0.75
+																								? "selected"
+																								: ""
+																						}>0.75</option>
+			                                     <option value="1" ${
+																							item.fitness == 1
+																								? "selected"
+																								: ""
+																						}>1</option>
+			                                 </select>
+			                             </div>
+			                             <button class="save-critique mt-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Save</button>
+			                         `;
+							listItem.appendChild(critiqueContainer);
+
+							critiqueContainer
+								.querySelector(".save-critique")
+								.addEventListener("click", () => {
+									const critiqueText =
+										critiqueContainer.querySelector(".critique-textarea").value;
+									const critiqueFitness =
+										critiqueContainer.querySelector(".critique-fitness").value;
+									if (critiqueText) {
+										eval_items[index].critique = critiqueText;
+										eval_items[index].fitness = critiqueFitness;
+										renderEvalItems();
+									}
+								});
+						} else {
+							critiqueContainer.style.display = "block";
+						}
+					});
+				});
+
+				// Add event listeners to delete critique buttons
+				document.querySelectorAll(".delete-critique").forEach((button) => {
+					button.addEventListener("click", (e) => {
+						const index = e.target.getAttribute("data-index");
+						delete eval_items[index].critique;
+						renderEvalItems();
+					});
+				});
+			}
+
+			document
+				.getElementById("process-button")
+				.addEventListener("click", async () => {
+					const button = document.getElementById("process-button");
+					const spinner = document.getElementById("spinner");
+
+					// Disable the button and show the spinner
+					button.disabled = true;
+					button.classList.add("bg-gray-500", "flex", "cursor-wait");
+					button.classList.remove("bg-blue-500", "hover:bg-blue-700");
+					button.innerHTML = `Generating <svg class="spinner" width="50px" height="50px" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="#fff" stroke-width="4" stroke-dasharray="31.4 31.4" /></svg>`;
+
+					eval_html = JSON.stringify(eval_items);
+
+					try {
+						const response = await fetch("/process/", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify({
+								item: eval_html,
+								amount: result_amount,
+								prompt: prompt,
+							}),
+						});
+						const data = await response.json();
+
+						// Create a new container for the results
+						const newResultContainer = document.createElement("div");
+						newResultContainer.classList.add(
+							"grid",
+							"2xl:grid-cols-4",
+							"lg:grid-cols-2",
+							"grid-cols-1",
+							"gap-4"
+						);
+
+						// Iterate over the returned elements and create a div for each
+						data.results.forEach((resource, index) => {
+							const resultDiv = document.createElement("div");
+							resultDiv.classList.add(
+								"flex-1",
+								"p-4",
+								"bg-white",
+								"rounded",
+								"shadow",
+								"border",
+								"overflow-hidden"
+							);
+
+							// Create multiple buttons with different fitness values
+							const buttonDiv = document.createElement("div");
+							buttonDiv.classList.add("flex", "gap-2", "mb-2");
+
+							// Create a description text
+							const useButtonDescription = document.createElement("div");
+							useButtonDescription.textContent = "Score";
+							useButtonDescription.classList.add(
+								"text-gray-800",
+								"font-bold",
+								"py-1",
+								"text-xs"
+							);
+							buttonDiv.appendChild(useButtonDescription);
+
+							// Create the ranking buttons
+							for (let i = 0; i <= 4; i++) {
+								const useButton = document.createElement("button");
+								useButton.classList.add(
+									"border",
+									"hover:bg-green-500",
+									"text-gray-500",
+									"hover:text-white",
+									"font-bold",
+									"py-1",
+									"px-2",
+									"rounded",
+									"text-xs",
+									"w-14"
+								);
+								useButton.textContent = `${i * 0.25}`; // Setting the text to the corresponding fitness value
+								useButton.onclick = () => {
+									resource["fitness"] = (i * 0.25).toFixed(2);
+									eval_items.unshift(resource);
+									if (eval_items.length >= memory_max) {
+										eval_items.pop(); // Remove the last item in the array
+										// removeLowestFitness(); // Remove the item with the lowest fitness value and the oldest
+										renderEvalItems();
+									}
+
+									// sortEvalItemsByFitness(); // Sort items by highest fitness value first
+
+									console.log("useForNextGen", eval_items);
+									// useButton.textContent = "✅";
+									useButton.classList.remove(
+										"text-gray-500",
+										"hover:text-white"
+									);
+									useButton.classList.add("bg-green-500", "text-white");
+
+									const buttons = buttonDiv.querySelectorAll("button");
+									buttons.forEach((button) => {
+										button.disabled = true;
+										button.classList.add("cursor-not-allowed", "opacity-50");
+									});
+
+									// Enable the clicked button to visually indicate the selection
+									useButton.disabled = false;
+									useButton.classList.remove(
+										"cursor-not-allowed",
+										"opacity-50"
+									);
+
+									// Render the updated eval items in the side panel
+									resultDiv.classList.add("border-green-400", "bg-green-50");
+
+									renderEvalItems();
+								};
+								buttonDiv.appendChild(useButton);
+							}
+							resultDiv.appendChild(buttonDiv);
+
+							// Item Name
+							const itemName = document.createElement("div");
+							itemName.innerHTML = resource.name;
+							itemName.classList.add("font-bold", "mb-1");
+							resultDiv.appendChild(itemName);
+
+							// Item Copy Code
+							const itemCopyCode = document.createElement("div");
+							itemCopyCode.innerHTML = `
+			                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			                                 <path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM20 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H20C21.1 23 22 22.1 22 21V7C22 5.9 21.1 5 20 5ZM20 21H8V7H20V21Z" fill="currentColor"/>
+			                             </svg>
+			                         `;
+							itemCopyCode.classList.add(
+								"float-right",
+								"cursor-pointer",
+								"mt-1.5",
+								"opacity-50"
+							);
+							itemCopyCode.addEventListener("click", async () => {
+								try {
+									await navigator.clipboard.writeText(resource.code);
+									showNotification("Code copied to clipboard");
+								} catch (err) {
+									console.error("Failed to copy code: ", err);
+								}
+							});
+							itemName.appendChild(itemCopyCode);
+
+							// Item Thought
+							const itemThought = document.createElement("div");
+							itemThought.innerHTML = `${resource.thought}`;
+							itemThought.classList.add(
+								"mb-4",
+								"h-28",
+								"text-sm",
+								"overflow-auto",
+								"border-b"
+							);
+							resultDiv.appendChild(itemThought);
+
+							// Item Code Iframe
+							const iframe = createIframe(resource.code);
+							resultDiv.appendChild(iframe);
+
+							// Append to container
+							newResultContainer.appendChild(resultDiv);
+						});
+
+						// Remove the last generation container if beyond max
+						console.log(counter, generation_show_amount);
+						if (counter > generation_show_amount) {
+							const gencontainer = document.getElementsByClassName(
+								"generationcontainer"
+							);
+							if (gencontainer.length > 0) {
+								gencontainer[gencontainer.length - 1].remove();
+							}
+						}
+
+						// Generation container
+						const generationContainer = document.createElement("div");
+						generationContainer.classList.add("generationcontainer");
+						generationContainer.append(newResultContainer);
+
+						// Generation title
+						const titleDiv = document.createElement("div");
+						titleDiv.innerHTML = "<b>GENERATION " + counter + "</b>";
+						titleDiv.classList.add("mb-2");
+						generationContainer.prepend(titleDiv);
+
+						// Prepend the new result container to the result div
+						document.getElementById("result").prepend(generationContainer);
+
+						counter += 1;
+					} catch (error) {
+						console.error("Error:", error);
+					} finally {
+						// Enable the button and hide the spinner
+						button.disabled = false;
+						button.classList.remove("bg-gray-500", "cursor-wait");
+						button.classList.add("bg-blue-500", "hover:bg-blue-700");
+						button.textContent = "Generate";
+					}
+				});
+		</script>
+	</body>
+</html>
